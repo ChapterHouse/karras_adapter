@@ -1,18 +1,4 @@
-#
-#class Object
-#
-#  def track(&block)
-#    location = caller_locations(1).first.base_label
-#    puts "#{$depth * '  '}#{location}"
-#    $depth += 1
-#    begin
-#      yield
-#    ensure
-#      $depth -= 1
-#    end
-#  end
-#
-#end
+require 'mongo/result'
 
 module Arel
   module Visitors
@@ -55,13 +41,15 @@ module Arel
         name = visit(o.source, a) if o.source && !o.source.empty?
 
         -> do
-          b = collection(name).find.to_a
 
-          if b.size > 0
-            dsfjkldsjfkldjs
-          else
-            ActiveRecord::Result.new([], [])
-          end
+          zzz = collection(name).find.map(&:values)
+          xxx = collection(name).find.to_a
+
+          rc = Mongo::Result.new(collection(name).find)
+          rc
+          # IDEA: Subclass ActiveRecord::Result to handle records that don't have all values populated.
+
+          #ActiveRecord::Result.new(document_field_names(name), collection(name).find.map(&:values))
 
 
           ## TODO: deal with multiple bind arrays
@@ -372,13 +360,12 @@ module Arel
       def visit_Arel_Nodes_JoinSource(o, a)
         # Temp work around as I figure out what is going on.
         if o.left
-          if o.right
-            [
-                visit(o.left, a),
-                o.right.map { |j| visit j, a }.join(' ')
-            ]
+          left = visit(o.left, a)
+          right = o.right.map { |j| visit j, a }
+          unless right.empty?
+            [left, right.join(' ')]
           else
-            visit(o.left, a)
+            left
           end
         else
           o.right.map { |j| visit j, a }.join(' ')
@@ -411,8 +398,7 @@ module Arel
       end
 
       def visit_Arel_Table(o, a)
-        rc = super
-        rc
+        super
       end
 
       def visit_Arel_Nodes_In(o, a)

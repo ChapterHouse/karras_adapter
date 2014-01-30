@@ -1,5 +1,13 @@
 require 'mongo'
 
+class BSON::ObjectId
+
+  def to_i
+    to_s.to_i(16)
+  end
+
+end
+
 module ActiveRecord
   module ConnectionHandling # :nodoc:
     # Establishes a connection to the database that's used by all Active Record objects.

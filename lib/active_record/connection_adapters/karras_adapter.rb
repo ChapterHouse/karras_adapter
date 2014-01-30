@@ -2,6 +2,11 @@ require 'active_record/connection_adapters/abstract_adapter'
 require 'active_record/connection_handling/karras'
 require 'arel/visitors/karras'
 
+
+# You need to map _id to id so the routes will work properly
+# Currently no records comming back have an id.
+
+
 module ActiveRecord
   module ConnectionAdapters
     class KarrasAdapter < AbstractAdapter
@@ -196,7 +201,7 @@ module ActiveRecord
       end
 
       def document_field_names(name)
-        document_fields(name).map { |x| x['name'] }
+        document_definition(name)['fields'].keys
       end
 
     end
