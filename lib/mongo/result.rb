@@ -1,5 +1,6 @@
-#require 'mongo'
+require 'mongo'
 require 'active_record/result'
+require 'set'
 
 module Mongo
 
@@ -9,17 +10,23 @@ module Mongo
 
     attr_reader :results
 
-    def initialize(mongo_cursor)
-      @results = mongo_cursor.to_a
+    def initialize(mongo_operation_base_result, fields=nil)
+      @results = mongo_operation_base_result
+      @fields = fields.is_a?(Set) ? fields.dup : fields.to_set if fields
     end
 
     def each
-      results.to_a.each { |row| yield row }
+      results.each { |result| yield result }
     end
 
     def columns
       # TODO: Should we only return the keys that are present in all results? I dunno. Thats what is making this Mongo adapter so interesting.
-      @columns ||= results.map(&:keys).flatten.uniq
+      # We call it fields until we cross the Mongo/ActiveRecord boundry.
+      if @fields.nil?
+        @fields = Set.new
+        each { |result| @fields += result.keys }
+      end
+      @fields
     end
 
     def column_types

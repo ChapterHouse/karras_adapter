@@ -1,13 +1,11 @@
-require 'mongo/result'
+require 'mongo/finder'
+#require 'mongo/result'
 
 module Arel
   module Visitors
     class Karras < Arel::Visitors::ToSql
 
       def visit_Arel_Nodes_SelectStatement(o, a)
-
-        visit_Arel_Nodes_SelectCore(o.cores.first, a)
-
         #str = ''
         #
         #if o.with
@@ -33,36 +31,43 @@ module Arel
         #
         #str.strip!
         #str
+
+        # TODO: Handle with
+        if o.with
+          visit(o.with, a)
+          raise NotImplementedError, 'With not yet implemented'
+        end
+
+        # TODO: Handle multiple cores
+        selector = visit_Arel_Nodes_SelectCore(o.cores.first, a)
+
+        selector.limit = visit(o.limit, a) if o.limit
+        selector.skip = visit(o.offset, a) if o.offset
+
+        if o.lock
+          visit(o.lock, a)
+          raise NotImplementedError, 'Locking not yet implemented'
+        end
+
+        selector
+
       end
 
       def visit_Arel_Nodes_SelectCore(o, a)
 
         # TODO: Handle select from non table sources, ie other inline result sets.
-        name = visit(o.source, a) if o.source && !o.source.empty?
+        # TODO: If not the above, remove or deal with !o.source or o.source.empty
+        # name = visit(o.source, a) if o.source && !o.source.empty?
+        selector = Mongo::Finder.new(visit(o.source, a))
 
-        -> do
+        fields = o.projections.map { |x| visit(x, a) }
+        selector.fields = fields unless fields.empty? || fields == ['*']
 
-          zzz = collection(name).find.map(&:values)
-          xxx = collection(name).find.to_a
+        selector.query = o.wheres.inject({}) { |kwery, x| kwery.merge(visit(x,a)) }
 
-          rc = Mongo::Result.new(collection(name).find)
-          rc
-          # IDEA: Subclass ActiveRecord::Result to handle records that don't have all values populated.
-
-          #ActiveRecord::Result.new(document_field_names(name), collection(name).find.map(&:values))
+        selector
 
 
-          ## TODO: deal with multiple bind arrays
-          #bindings.first.each_slice(2) do |column, value|
-          #  # TODO: Is the conditional necessary or will we always be fed sane stuff?
-          #  document[column.name] = value if document[column.name] == '?'
-          #end
-          #collection(collection_name).insert(document)
-          #
-          #
-          #ActiveRecord::Result.new(document.keys.map(&:to_s), [document.values])
-
-        end
 =begin
         str = "SELECT"
 
@@ -261,11 +266,11 @@ module Arel
       end
 
       def visit_Arel_Nodes_Offset(o, a)
-        raise NotImplementedError, "#{caller_locations(0).first.base_label} not implemented"
+        visit(o.expr, a)
       end
 
       def visit_Arel_Nodes_Limit(o, a)
-        raise NotImplementedError, "#{caller_locations(0).first.base_label} not implemented"
+        visit(o.expr, a)
       end
 
       # FIXME: this does nothing on most databases, but does on MSSQL
@@ -410,7 +415,9 @@ module Arel
       end
 
       def visit_Arel_Nodes_And(o, a)
-        raise NotImplementedError, "#{caller_locations(0).first.base_label} not implemented"
+        # o.children.map { |x| visit x, a }.join ' AND '
+        rc = o.children.map { |x| visit(x, a) }.inject({}) { |total, part| total.merge part }
+        rc
       end
 
       def visit_Arel_Nodes_Or(o, a)
@@ -422,7 +429,9 @@ module Arel
       end
 
       def visit_Arel_Nodes_Equality(o, a)
-        raise NotImplementedError, "#{caller_locations(0).first.base_label} not implemented"
+        a = o.left if Arel::Attributes::Attribute === o.left
+        rc = { visit(o.left, a) => o.right.nil? ? nil : visit(o.right, a) }
+        rc
       end
 
       def visit_Arel_Nodes_NotEqual(o, a)
@@ -438,7 +447,9 @@ module Arel
       end
 
       def visit_Arel_Attributes_Attribute(o, a)
-        raise NotImplementedError, "#{caller_locations(0).first.base_label} not implemented"
+        #join_name = o.relation.table_alias || o.relation.name
+        #"#{quote_table_name join_name}.#{quote_column_name o.name}"
+        quote_column_name o.name
       end
 
       def visit_Arel_Nodes_InfixOperation(o, a)

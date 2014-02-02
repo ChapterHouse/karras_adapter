@@ -1,6 +1,8 @@
+require 'karras_adapter/version'
 require 'active_record/connection_adapters/abstract_adapter'
 require 'active_record/connection_handling/karras'
 require 'arel/visitors/karras'
+require 'mongo/operation'
 
 
 # You need to map _id to id so the routes will work properly
@@ -11,17 +13,29 @@ module ActiveRecord
   module ConnectionAdapters
     class KarrasAdapter < AbstractAdapter
 
-      VERSION = "0.0.1"
+      include Mongo::Operation
 
       def initialize(connection, logger, config)
+        raise ArgumentError, "Unrecognized mongo connector #{connection.class.name}" unless connection.is_a?(Mongo::DB) || connection.is_a?(Mongo::Connection)
         super
-        #@visitor = unprepared_visitor
         @visitor = Arel::Visitors::Karras.new self
-        @db = connection
+        if !Mongo::Operation.default_connection?
+          # Set a default connection/db if neither has been set yet.
+          if connection.is_a?(Mongo::DB)
+            Mongo::Operation.default_db = connection
+          else
+            Mongo::Operation.default_connection = connection
+          end
+        else
+          # Else this is a additional connection. Keep track of it locally.
+          if connection.is_a?(Mongo::DB)
+            self.default_db = connection
+          else
+            self.default_connection = connection
+          end
+
+        end
       end
-
-
-      attr_reader :db
 
       #add_index("schema_migrations", :version, {:unique=>true, :name=>"unique_schema_migrations"})
       def add_index(table_name, column_name, options = {})
@@ -36,7 +50,9 @@ module ActiveRecord
 
       # TODO: Add log statements like other adapters.
       def execute(sql, name = nil)
-        if sql.is_a?(Proc)
+        if sql.is_a?(Mongo::Operation::Base)
+          sql.results
+        elsif sql.is_a?(Proc)
           sql.call
         else
           raise NotImplementedError, "#{caller_locations(0).first.base_label} raw commands not implemented"
@@ -44,7 +60,10 @@ module ActiveRecord
       end
 
       def exec_query(sql, name = 'SQL', binds = [])
-        if sql.is_a?(Proc)
+        if sql.is_a?(Mongo::Operation::Base)
+          sql.bindings = binds
+          sql.results
+        elsif sql.is_a?(Proc)
           sql.call(binds)
         else
           raise NotImplementedError, "#{caller_locations(0).first.base_label} raw commands not implemented"
@@ -52,7 +71,7 @@ module ActiveRecord
       end
 
       def indexes(table_name, name = nil)
-#        class IndexDefinition < Struct.new(:table, :name, :unique, :columns, :lengths, :orders, :where, :type, :using) #:nodoc:
+#        Class IndexDefinition < Struct.new(:table, :name, :unique, :columns, :lengths, :orders, :where, :type, :using) #:nodoc:
 
 
         collection(table_name).index_information.map { |info|
@@ -131,7 +150,7 @@ module ActiveRecord
       # Returns an array of record hashes with the column names as keys and
       # column values as values.
       def select(sql, name = nil, binds = [])
-        execute(sql, name)
+        exec_query(sql, name, binds)
       end
 
       def tables
@@ -149,10 +168,6 @@ module ActiveRecord
       def method_missing?(name, *args, &block)
         puts "Oh crap #{name.inspect}(#{args.inspect})"
         super
-      end
-
-      def collection(name)
-        db.collection(name)
       end
 
       def document_definitions
