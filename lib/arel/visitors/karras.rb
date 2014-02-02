@@ -1,125 +1,11 @@
 require 'mongo/finder'
-#require 'mongo/result'
+require 'mongo/inserter'
+require 'mongo/updater'
+require 'mongo/remover'
 
 module Arel
   module Visitors
     class Karras < Arel::Visitors::ToSql
-
-      def visit_Arel_Nodes_SelectStatement(o, a)
-        #str = ''
-        #
-        #if o.with
-        #  str << visit(o.with, a)
-        #  str << SPACE
-        #end
-        #
-        #o.cores.each { |x| str << visit_Arel_Nodes_SelectCore(x, a) }
-        #
-        #unless o.orders.empty?
-        #  str << SPACE
-        #  str << ORDER_BY
-        #  len = o.orders.length - 1
-        #  o.orders.each_with_index { |x, i|
-        #    str << visit(x, a)
-        #    str << COMMA unless len == i
-        #  }
-        #end
-        #
-        #str << " #{visit(o.limit, a)}" if o.limit
-        #str << " #{visit(o.offset, a)}" if o.offset
-        #str << " #{visit(o.lock, a)}" if o.lock
-        #
-        #str.strip!
-        #str
-
-        # TODO: Handle with
-        if o.with
-          visit(o.with, a)
-          raise NotImplementedError, 'With not yet implemented'
-        end
-
-        # TODO: Handle multiple cores
-        selector = visit_Arel_Nodes_SelectCore(o.cores.first, a)
-
-        selector.limit = visit(o.limit, a) if o.limit
-        selector.skip = visit(o.offset, a) if o.offset
-
-        if o.lock
-          visit(o.lock, a)
-          raise NotImplementedError, 'Locking not yet implemented'
-        end
-
-        selector
-
-      end
-
-      def visit_Arel_Nodes_SelectCore(o, a)
-
-        # TODO: Handle select from non table sources, ie other inline result sets.
-        # TODO: If not the above, remove or deal with !o.source or o.source.empty
-        # name = visit(o.source, a) if o.source && !o.source.empty?
-        selector = Mongo::Finder.new(visit(o.source, a))
-
-        fields = o.projections.map { |x| visit(x, a) }
-        selector.fields = fields unless fields.empty? || fields == ['*']
-
-        selector.query = o.wheres.inject({}) { |kwery, x| kwery.merge(visit(x,a)) }
-
-        selector
-
-
-=begin
-        str = "SELECT"
-
-        str << " #{visit(o.top, a)}"            if o.top
-        str << " #{visit(o.set_quantifier, a)}" if o.set_quantifier
-
-        unless o.projections.empty?
-          str << SPACE
-          len = o.projections.length - 1
-          o.projections.each_with_index do |x, i|
-            str << visit(x, a)
-            str << COMMA unless len == i
-          end
-        end
-
-        str << " FROM #{visit(o.source, a)}" if o.source && !o.source.empty?
-
-        unless o.wheres.empty?
-          str << WHERE
-          len = o.wheres.length - 1
-          o.wheres.each_with_index do |x, i|
-            str << visit(x, a)
-            str << AND unless len == i
-          end
-        end
-
-        unless o.groups.empty?
-          str << GROUP_BY
-          len = o.groups.length - 1
-          o.groups.each_with_index do |x, i|
-            str << visit(x, a)
-            str << COMMA unless len == i
-          end
-        end
-
-        str << " #{visit(o.having, a)}" if o.having
-
-        unless o.windows.empty?
-          str << WINDOW
-          len = o.windows.length - 1
-          o.windows.each_with_index do |x, i|
-            str << visit(x, a)
-            str << COMMA unless len == i
-          end
-        end
-
-        str
-=end
-      end
-
-
-
 
       private
 
@@ -144,29 +30,64 @@ module Arel
       end
 
       def visit_Arel_Nodes_DeleteStatement(o, a)
-        raise NotImplementedError, "#{caller_locations(0).first.base_label} not implemented"
+        #[
+        #    "DELETE FROM #{visit o.relation}",
+        #    ("WHERE #{o.wheres.map { |x| visit x }.join AND}" unless o.wheres.empty?)
+        #].compact.join ' '
+
+        remover = Mongo::Remover.new(visit(o.relation))
+        remover.query = o.wheres.inject({}) { |kwery, x| kwery.merge(visit(x,a)) }
+        remover
       end
 
       def visit_Arel_Nodes_UpdateStatement(o, a)
-        raise NotImplementedError, "#{caller_locations(0).first.base_label} not implemented"
+#        if o.orders.empty? && o.limit.nil?
+#          wheres = o.wheres
+#        else
+#          key = o.key
+#          unless key
+#            warn(<<-eowarn) if $VERBOSE
+#(#{caller.first}) Using UpdateManager without setting UpdateManager#key is
+#deprecated and support will be removed in Arel 4.0.0.  Please set the primary
+#key on UpdateManager using UpdateManager#key= '#{key.inspect}'
+#            eowarn
+#            key = o.relation.primary_key
+#          end
+#
+#          wheres = [Nodes::In.new(key, [build_subselect(key, o)])]
+#        end
+#
+#        [
+#            "UPDATE #{visit o.relation, a}",
+#            ("SET #{o.values.map { |value| visit value, a }.join ', '}" unless o.values.empty?),
+#            ("WHERE #{wheres.map { |x| visit x, a }.join ' AND '}" unless wheres.empty?),
+#        ].compact.join ' '
+
+        updater = Mongo::Updater.new(visit(o.relation, a))
+        wheres = (o.orders.empty? && o.limit.nil?) ? o.wheres : [Arel::Nodes::In.new(key, [build_subselect(o.key, o)])]
+        updater.query = o.wheres.inject({}) { |kwery, x| kwery.merge(visit(x,a)) }
+        updater.document = o.values.inject({}) { |sets, value| sets.merge(visit(value,a)) }
+
+        updater
       end
 
       # TODO: Deal with embedded inserts
       def visit_Arel_Nodes_InsertStatement(o, a)
-        collection_name = visit(o.relation, a)
-        keys = o.columns.map { |x| quote_column_name x.name }
-        values = visit(o.values, a)
+        #[
+        #    "INSERT INTO #{visit o.relation, a}",
+        #
+        #    ("(#{o.columns.map { |x|
+        #      quote_column_name x.name
+        #    }.join ', '})" unless o.columns.empty?),
+        #
+        #    (visit o.values, a if o.values),
+        #].compact.join ' '
+        #
+        fields = o.columns.map { |x| quote_column_name x.name }
+
         # TODO: Consider active_record/lib/result.rb line 62 for performance
-        document = Hash[keys.zip(values)]
-        ->(bindings) do
-          # TODO: deal with multiple bind arrays
-          bindings.first.each_slice(2) do |column, value|
-            # TODO: Is the conditional necessary or will we always be fed sane stuff?
-            document[column.name] = value if document[column.name] == '?'
-          end
-          collection(collection_name).insert(document)
-          ActiveRecord::Result.new(document.keys.map(&:to_s), [document.values])
-        end
+        Mongo::Inserter.new(visit(o.relation, a), Hash[fields.zip(visit(o.values, a))])
+
       end
 
       def visit_Arel_Nodes_Exists(o, a)
@@ -181,16 +102,44 @@ module Arel
         raise NotImplementedError, "#{caller_locations(0).first.base_label} not implemented"
       end
 
-      # TODO: If this is only called from one or a few locations then we might do this inline instead.
       def visit_Arel_Nodes_Values(o, a)
-        o.expressions.zip(o.columns).map { |value, attr|
-          if Nodes::SqlLiteral === value
-            visit value, a
-          else
-            quote(value, attr && column_for(attr))
-          end
-        }
-        #raise NotImplementedError, "#{caller_locations(0).first.base_label} not implemented"
+        o.expressions.zip(o.columns).map { |value, attr|(Nodes::SqlLiteral === value) ? visit(value, a) : quote(value, attr && column_for(attr)) }
+      end
+
+      def visit_Arel_Nodes_SelectStatement(o, a)
+        # TODO: Handle with
+        if o.with
+          visit(o.with, a)
+          raise NotImplementedError, 'With not yet implemented'
+        end
+
+        # TODO: Handle multiple cores
+        selector = visit_Arel_Nodes_SelectCore(o.cores.first, a)
+
+        selector.limit = visit(o.limit, a) if o.limit
+        selector.skip = visit(o.offset, a) if o.offset
+
+        if o.lock
+          visit(o.lock, a)
+          raise NotImplementedError, 'Locking not yet implemented'
+        end
+
+        selector
+      end
+
+      def visit_Arel_Nodes_SelectCore(o, a)
+
+        # TODO: Handle select from non table sources, ie other inline result sets.
+        # TODO: If not the above, remove or deal with !o.source or o.source.empty
+        # name = visit(o.source, a) if o.source && !o.source.empty?
+        selector = Mongo::Finder.new(visit(o.source, a))
+
+        fields = o.projections.map { |x| visit(x, a) }
+        selector.fields = fields unless fields.empty? || fields == ['*']
+
+        selector.query = o.wheres.inject({}) { |kwery, x| kwery.merge(visit(x,a)) }
+
+        selector
       end
 
       def visit_Arel_Nodes_Bin(o, a)
@@ -415,9 +364,7 @@ module Arel
       end
 
       def visit_Arel_Nodes_And(o, a)
-        # o.children.map { |x| visit x, a }.join ' AND '
-        rc = o.children.map { |x| visit(x, a) }.inject({}) { |total, part| total.merge part }
-        rc
+        o.children.map { |x| visit(x, a) }.inject({}) { |total, part| total.merge part }
       end
 
       def visit_Arel_Nodes_Or(o, a)
@@ -425,13 +372,14 @@ module Arel
       end
 
       def visit_Arel_Nodes_Assignment(o, a)
-        raise NotImplementedError, "#{caller_locations(0).first.base_label} not implemented"
+        #right = quote(o.right, column_for(o.left))
+        #"#{visit o.left, a} = #{right}"
+        {visit(o.left, a) => quote(o.right, column_for(o.left))}
       end
 
       def visit_Arel_Nodes_Equality(o, a)
         a = o.left if Arel::Attributes::Attribute === o.left
-        rc = { visit(o.left, a) => o.right.nil? ? nil : visit(o.right, a) }
-        rc
+        { visit(o.left, a) => o.right.nil? ? nil : visit(o.right, a) }
       end
 
       def visit_Arel_Nodes_NotEqual(o, a)
@@ -443,7 +391,7 @@ module Arel
       end
 
       def visit_Arel_Nodes_UnqualifiedColumn(o, a)
-        raise NotImplementedError, "#{caller_locations(0).first.base_label} not implemented"
+        "#{quote_column_name o.name}"
       end
 
       def visit_Arel_Attributes_Attribute(o, a)
