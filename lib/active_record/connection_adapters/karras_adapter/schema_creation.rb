@@ -1,23 +1,19 @@
+require 'mongo/definer'
+
 class ActiveRecord::ConnectionAdapters::KarrasAdapter::SchemaCreation < ActiveRecord::ConnectionAdapters::AbstractAdapter::SchemaCreation
 
   private
 
   def visit_AlterTable(o)
     raise NotImplementedError, "#{caller_locations(0).first.base_label} not implemented"
-#          Kernel.warn "visit_AlterTable incomplete"
-#          super
   end
 
   def visit_AddColumn(o)
     raise NotImplementedError, "#{caller_locations(0).first.base_label} not implemented"
-    #Kernel.warn "visit_AddColumn incomplete"
-    #super
   end
 
   def visit_ColumnDefinition(o)
     raise NotImplementedError, "#{caller_locations(0).first.base_label} not implemented"
-    #Kernel.warn "visit_ColumnDefinition incomplete"
-    #super
   end
 
   def visit_TableDefinition(o)
@@ -42,10 +38,16 @@ class ActiveRecord::ConnectionAdapters::KarrasAdapter::SchemaCreation < ActiveRe
     end
     name = o.name
 
-    -> do
-      document_definitions.insert({ 'name' => name, 'fields' => fields })
-      db.create_collection(name)
-    end
+    Mongo::Definer.new(name, fields).tap { |definer| definer.bindings = { 'name' => name, 'fields' => fields } }
+    #
+    #
+    #
+    #Mongo::Inserter.new('document_definitions', { 'name' => name, 'fields' => fields })
+    #
+    #-> do
+    #  document_definitions.insert({ 'name' => name, 'fields' => fields })
+    #  db.create_collection(name)
+    #end
   end
 
   def db

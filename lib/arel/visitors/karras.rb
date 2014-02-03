@@ -30,39 +30,12 @@ module Arel
       end
 
       def visit_Arel_Nodes_DeleteStatement(o, a)
-        #[
-        #    "DELETE FROM #{visit o.relation}",
-        #    ("WHERE #{o.wheres.map { |x| visit x }.join AND}" unless o.wheres.empty?)
-        #].compact.join ' '
-
         remover = Mongo::Remover.new(visit(o.relation))
         remover.query = o.wheres.inject({}) { |kwery, x| kwery.merge(visit(x,a)) }
         remover
       end
 
       def visit_Arel_Nodes_UpdateStatement(o, a)
-#        if o.orders.empty? && o.limit.nil?
-#          wheres = o.wheres
-#        else
-#          key = o.key
-#          unless key
-#            warn(<<-eowarn) if $VERBOSE
-#(#{caller.first}) Using UpdateManager without setting UpdateManager#key is
-#deprecated and support will be removed in Arel 4.0.0.  Please set the primary
-#key on UpdateManager using UpdateManager#key= '#{key.inspect}'
-#            eowarn
-#            key = o.relation.primary_key
-#          end
-#
-#          wheres = [Nodes::In.new(key, [build_subselect(key, o)])]
-#        end
-#
-#        [
-#            "UPDATE #{visit o.relation, a}",
-#            ("SET #{o.values.map { |value| visit value, a }.join ', '}" unless o.values.empty?),
-#            ("WHERE #{wheres.map { |x| visit x, a }.join ' AND '}" unless wheres.empty?),
-#        ].compact.join ' '
-
         updater = Mongo::Updater.new(visit(o.relation, a))
         wheres = (o.orders.empty? && o.limit.nil?) ? o.wheres : [Arel::Nodes::In.new(key, [build_subselect(o.key, o)])]
         updater.query = o.wheres.inject({}) { |kwery, x| kwery.merge(visit(x,a)) }
@@ -73,21 +46,10 @@ module Arel
 
       # TODO: Deal with embedded inserts
       def visit_Arel_Nodes_InsertStatement(o, a)
-        #[
-        #    "INSERT INTO #{visit o.relation, a}",
-        #
-        #    ("(#{o.columns.map { |x|
-        #      quote_column_name x.name
-        #    }.join ', '})" unless o.columns.empty?),
-        #
-        #    (visit o.values, a if o.values),
-        #].compact.join ' '
-        #
         fields = o.columns.map { |x| quote_column_name x.name }
 
         # TODO: Consider active_record/lib/result.rb line 62 for performance
         Mongo::Inserter.new(visit(o.relation, a), Hash[fields.zip(visit(o.values, a))])
-
       end
 
       def visit_Arel_Nodes_Exists(o, a)
@@ -95,11 +57,11 @@ module Arel
       end
 
       def visit_Arel_Nodes_True(o, a)
-        raise NotImplementedError, "#{caller_locations(0).first.base_label} not implemented"
+        true
       end
 
       def visit_Arel_Nodes_False(o, a)
-        raise NotImplementedError, "#{caller_locations(0).first.base_label} not implemented"
+        false
       end
 
       def visit_Arel_Nodes_Values(o, a)
@@ -143,7 +105,7 @@ module Arel
       end
 
       def visit_Arel_Nodes_Bin(o, a)
-        raise NotImplementedError, "#{caller_locations(0).first.base_label} not implemented"
+        visit o.expr, a
       end
 
       def visit_Arel_Nodes_Distinct(o, a)
@@ -222,9 +184,8 @@ module Arel
         visit(o.expr, a)
       end
 
-      # FIXME: this does nothing on most databases, but does on MSSQL
       def visit_Arel_Nodes_Top(o, a)
-        raise NotImplementedError, "#{caller_locations(0).first.base_label} not implemented"
+        nil
       end
 
       def visit_Arel_Nodes_Lock(o, a)
@@ -315,7 +276,7 @@ module Arel
         # Temp work around as I figure out what is going on.
         if o.left
           left = visit(o.left, a)
-          right = o.right.map { |j| visit j, a }
+          right = o.right.map { |j| visit(j, a) }
           unless right.empty?
             [left, right.join(' ')]
           else
@@ -391,7 +352,7 @@ module Arel
       end
 
       def visit_Arel_Nodes_UnqualifiedColumn(o, a)
-        "#{quote_column_name o.name}"
+        quote_column_name o.name
       end
 
       def visit_Arel_Attributes_Attribute(o, a)

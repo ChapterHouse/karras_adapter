@@ -185,8 +185,13 @@ module Mongo
       end
 
       def self.bind_to(target=nil)
-        @target = target.to_sym if target
-        @target
+        if target
+          @target = target.to_sym
+        elsif @target.nil? && superclass < Mongo::Operation::Base
+          superclass.bind_to
+        else
+          @target
+        end
       end
 
       def initialize(collection_or_name, query={}, document={}, options={})
