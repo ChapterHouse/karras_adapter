@@ -1,7 +1,4 @@
-require 'mongo/finder'
-require 'mongo/inserter'
-require 'mongo/updater'
-require 'mongo/remover'
+require 'mongo/crud'
 
 module Arel
   module Visitors
@@ -30,13 +27,13 @@ module Arel
       end
 
       def visit_Arel_Nodes_DeleteStatement(o, a)
-        remover = Mongo::Remover.new(visit(o.relation))
+        remover = Mongo::Crud::Delete.new(visit(o.relation))
         remover.query = o.wheres.inject({}) { |kwery, x| kwery.merge(visit(x,a)) }
         remover
       end
 
       def visit_Arel_Nodes_UpdateStatement(o, a)
-        updater = Mongo::Updater.new(visit(o.relation, a))
+        updater = Mongo::Crup::Update.new(visit(o.relation, a))
         wheres = (o.orders.empty? && o.limit.nil?) ? o.wheres : [Arel::Nodes::In.new(key, [build_subselect(o.key, o)])]
         updater.query = o.wheres.inject({}) { |kwery, x| kwery.merge(visit(x,a)) }
         updater.document = o.values.inject({}) { |sets, value| sets.merge(visit(value,a)) }
@@ -49,7 +46,7 @@ module Arel
         fields = o.columns.map { |x| quote_column_name x.name }
 
         # TODO: Consider active_record/lib/result.rb line 62 for performance
-        Mongo::Inserter.new(visit(o.relation, a), Hash[fields.zip(visit(o.values, a))])
+        Mongo::Crud::Update.new(visit(o.relation, a), Hash[fields.zip(visit(o.values, a))])
       end
 
       def visit_Arel_Nodes_Exists(o, a)
@@ -94,7 +91,7 @@ module Arel
         # TODO: Handle select from non table sources, ie other inline result sets.
         # TODO: If not the above, remove or deal with !o.source or o.source.empty
         # name = visit(o.source, a) if o.source && !o.source.empty?
-        selector = Mongo::Finder.new(visit(o.source, a))
+        selector = Mongo::Crud::Read.new(visit(o.source, a))
 
         fields = o.projections.map { |x| visit(x, a) }
         selector.fields = fields unless fields.empty? || fields == ['*']

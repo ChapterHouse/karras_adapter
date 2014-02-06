@@ -1,15 +1,21 @@
-require 'mongo/definer'
+require 'mongo/document_definition'
 
 class ActiveRecord::ConnectionAdapters::KarrasAdapter::SchemaCreation < ActiveRecord::ConnectionAdapters::AbstractAdapter::SchemaCreation
 
   private
 
   def visit_AlterTable(o)
+    sql = "ALTER TABLE #{quote_table_name(o.name)} "
+    zzz = o.adds.map { |col| visit_AddColumn col }
+    sql << o.adds.map { |col| visit_AddColumn col }.join(' ')
     raise NotImplementedError, "#{caller_locations(0).first.base_label} not implemented"
   end
 
   def visit_AddColumn(o)
-    raise NotImplementedError, "#{caller_locations(0).first.base_label} not implemented"
+    sql_type = type_to_sql(o.type.to_sym, o.limit, o.precision, o.scale)
+    sql = "ADD #{quote_column_name(o.name)} #{sql_type}"
+    add_column_options!(sql, column_options(o))
+    #raise NotImplementedError, "#{caller_locations(0).first.base_label} not implemented"
   end
 
   def visit_ColumnDefinition(o)
@@ -38,7 +44,7 @@ class ActiveRecord::ConnectionAdapters::KarrasAdapter::SchemaCreation < ActiveRe
     end
     name = o.name
 
-    Mongo::Definer.new(name, fields).tap { |definer| definer.bindings = { 'name' => name, 'fields' => fields } }
+    Mongo::DocumentDefinition::Create.new(name, fields).tap { |definer| definer.bindings = { 'name' => name, 'fields' => fields } }
     #
     #
     #

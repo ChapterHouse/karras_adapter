@@ -50,7 +50,7 @@ module ActiveRecord
 
       # TODO: Add log statements like other adapters.
       def execute(sql, name = nil)
-        if sql.is_a?(Mongo::Operation::Base)
+        if sql.is_a?(Mongo::Operation::Base) || sql.is_a?(Mongo::DocumentDefinition)
           sql.results
         else
           raise NotImplementedError, "#{caller_locations(0).first.base_label} raw commands not implemented"
@@ -58,7 +58,7 @@ module ActiveRecord
       end
 
       def exec_query(sql, name = 'SQL', binds = [])
-        if sql.is_a?(Mongo::Operation::Base)
+        if sql.is_a?(Mongo::Operation::Base) || sql.is_a?(Mongo::DocumentDefinition)
           sql.bindings = binds
           sql.results
         else
