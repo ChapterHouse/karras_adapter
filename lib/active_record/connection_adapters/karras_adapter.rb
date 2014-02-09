@@ -37,13 +37,14 @@ module ActiveRecord
         end
       end
 
+      # TODO: Abstract in the same way of DocumentDefinitions. Lets keep all of the direct calls to collection inside of Crud.
       #add_index("schema_migrations", :version, {:unique=>true, :name=>"unique_schema_migrations"})
       def add_index(table_name, column_name, options = {})
         collection(table_name).create_index(column_name)
       end
 
       def columns(table_name)
-        document_fields(table_name).map { |name, field_definition|
+        Mongo::DocumentDefinition.fields_for(table_name).map { |name, field_definition|
           Column.new(name, field_definition['default'], field_definition['type'], field_definition['null'])
         }
       end
@@ -66,6 +67,7 @@ module ActiveRecord
         end
       end
 
+      # TODO: Abstract in the same way of DocumentDefinitions. Lets keep all of the direct calls to collection inside of Crud.
       def indexes(table_name, name = nil)
 #        Class IndexDefinition < Struct.new(:table, :name, :unique, :columns, :lengths, :orders, :where, :type, :using) #:nodoc:
 
@@ -139,7 +141,7 @@ module ActiveRecord
       def primary_key(table_name)
         # TODO: Change this to be a pure mongo lookup by digging into document definitions
         # TODO: Manage _id and id
-        id_definition = document_fields(table_name).find { |_, field_definition| field_definition['primary_key'] }
+        id_definition = Mongo::DocumentDefinition.fields_for(table_name).find { |_, field_definition| field_definition['primary_key'] }
         Array(id_definition).first # && id_definition.first || '_id'
       end
 
@@ -166,53 +168,14 @@ module ActiveRecord
         super
       end
 
-      def document_definitions
-        unless db.collection_names.include?('document_definitions')
-          collection('document_definitions').insert(
-              'name' => 'document_definitions',
-              'fields' => {
-                  'name' =>   { 'type' => :string, 'limit' => nil, 'precision' => nil, 'scale' => nil, 'default' => nil, 'null' => false, 'first' => nil, 'after' => nil, 'primary_key' => true},
-                  # TODO: Umm type idunno? Return to this when you get AR to deal with flux types.
-                  'fields' => { 'type' => :string,   'limit' => nil, 'precision' => nil, 'scale' => nil, 'default' => nil, 'null' => false, 'first' => nil, 'after' => nil, 'primary_key' => nil}
-              }
-          )
-
-          document_definitions.insert(
-              'name' => 'system.indexes',
-              'fields' => {
-                  'v'    => { 'type' => :integer, 'limit' => nil, 'precision' => nil, 'scale' => nil, 'default' => nil, 'null' => false, 'first' => nil, 'after' => nil, 'primary_key' => nil},
-                  'key'  => { 'type' => :string,    'limit' => nil, 'precision' => nil, 'scale' => nil, 'default' => nil, 'null' => false, 'first' => nil, 'after' => nil, 'primary_key' => nil},
-                  'ns'   => { 'type' => :string,  'limit' => nil, 'precision' => nil, 'scale' => nil, 'default' => nil, 'null' => false, 'first' => nil, 'after' => nil, 'primary_key' => true},
-                  'name' => { 'type' => :string,  'limit' => nil, 'precision' => nil, 'scale' => nil, 'default' => nil, 'null' => false, 'first' => nil, 'after' => nil, 'primary_key' => nil}
-              }
-          )
-
-        end
-
-        collection('document_definitions')
-      end
-
+      # TODO: Abstract in the same way of DocumentDefinitions. Lets keep all of the direct calls to collection inside of Crud.
       def schema_migrations
         collection('schema_migrations')
       end
 
+      # TODO: Abstract in the same way of DocumentDefinitions. Lets keep all of the direct calls to collection inside of Crud.
       def system_indexes
         collection('system.indexes')
-      end
-
-
-      # TODO: Something quasi dynamic when it's not in the document definitions?
-      def document_definition(name)
-        document_definitions.find_one( { 'name' => name } )
-        #collection('document_definitions').find_one( { name => { '$exists' => true } } )
-      end
-
-      def document_fields(name)
-        document_definition(name)['fields']
-      end
-
-      def document_field_names(name)
-        document_definition(name)['fields'].keys
       end
 
     end

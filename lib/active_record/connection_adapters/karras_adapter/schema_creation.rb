@@ -44,7 +44,10 @@ class ActiveRecord::ConnectionAdapters::KarrasAdapter::SchemaCreation < ActiveRe
     end
     name = o.name
 
+    # TODO: Work into crud and avoid direct collection statements
+    #db.create_collection(name)
     Mongo::DocumentDefinition::Create.new(name, fields).tap { |definer| definer.bindings = { 'name' => name, 'fields' => fields } }
+
     #
     #
     #

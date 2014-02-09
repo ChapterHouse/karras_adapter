@@ -32,9 +32,6 @@ class Mongo::Operation::Base
     raise NotImplementedError, "Someone forgot to define an execute instance method for class #{self.class.name}"
   end
 
-  def document_definitions
-    collection('document_definitions')
-  end
 
 end
 

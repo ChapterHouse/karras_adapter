@@ -46,7 +46,7 @@ module Arel
         fields = o.columns.map { |x| quote_column_name x.name }
 
         # TODO: Consider active_record/lib/result.rb line 62 for performance
-        Mongo::Crud::Update.new(visit(o.relation, a), Hash[fields.zip(visit(o.values, a))])
+        Mongo::Crud::Create.new(visit(o.relation, a), Hash[fields.zip(visit(o.values, a))])
       end
 
       def visit_Arel_Nodes_Exists(o, a)
