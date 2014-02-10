@@ -1,3 +1,4 @@
+require 'karras_adapter/version'
 require 'mongo/document_definition'
 
 class ActiveRecord::ConnectionAdapters::KarrasAdapter::SchemaCreation < ActiveRecord::ConnectionAdapters::AbstractAdapter::SchemaCreation
@@ -5,16 +6,18 @@ class ActiveRecord::ConnectionAdapters::KarrasAdapter::SchemaCreation < ActiveRe
   private
 
   def visit_AlterTable(o)
-    sql = "ALTER TABLE #{quote_table_name(o.name)} "
+    sqlO = "ALTER TABLE #{quote_table_name(o.name)} "
+    sql = Mongo::DocumentDefinition::Update.new(o.name)
     zzz = o.adds.map { |col| visit_AddColumn col }
-    sql << o.adds.map { |col| visit_AddColumn col }.join(' ')
+    sqlO << o.adds.map { |col| visit_AddColumn col }.join(' ')
     raise NotImplementedError, "#{caller_locations(0).first.base_label} not implemented"
   end
 
   def visit_AddColumn(o)
     sql_type = type_to_sql(o.type.to_sym, o.limit, o.precision, o.scale)
     sql = "ADD #{quote_column_name(o.name)} #{sql_type}"
-    add_column_options!(sql, column_options(o))
+    zzz = add_column_options!(sql, column_options(o))
+    zzz
     #raise NotImplementedError, "#{caller_locations(0).first.base_label} not implemented"
   end
 
