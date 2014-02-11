@@ -86,7 +86,7 @@ module ActiveRecord::ConnectionAdapters::KarrasAdapter::SchemaStatements
 
   def columns(table_name)
     Mongo::DocumentDefinition.fields_for(table_name).map { |name, field_definition|
-      Column.new(name, field_definition['default'], field_definition['type'], field_definition['null'])
+      ActiveRecord::ConnectionAdapters::Column.new(name, field_definition['default'], field_definition['type'], field_definition['null'])
     }
   end
 
@@ -106,7 +106,7 @@ module ActiveRecord::ConnectionAdapters::KarrasAdapter::SchemaStatements
       type = nil
       using = nil
 
-      IndexDefinition.new(table_name, index_name, unique, column_names, lengths, orders, where, type, using)
+      ActiveRecord::ConnectionAdapters::IndexDefinition.new(table_name, index_name, unique, column_names, lengths, orders, where, type, using)
     }
 #
 #system_indexes.find( { :ns => 'test.schema_migrations' }).map { |row|
@@ -303,7 +303,26 @@ module ActiveRecord::ConnectionAdapters::KarrasAdapter::SchemaStatements
     #if options[:auto_increment] == true
     #  sql << " AUTO_INCREMENT"
     #end
-    raise NotImplementedError, "#{caller_locations(0).first.base_label} not implemented"
+
+    fields = {}
+    column = options[:column]
+    if column.primary_key
+      column.null = false
+    elsif column.null.nil?
+      column.null = true
+    end
+
+    # TODO: Figure out a way to store these as is but change them at the last moment before AR and normal Schema code see's them.
+    # Ideally we would want to know something is a hash so we can automatically interpret it as a document or whatever.
+    # Any other string marshaled type would work too.
+    if column.type == :primary_key
+      column.type = :integer
+    elsif column.type == :hash
+      column.type = :string
+    end
+    hash = column.to_h
+    fields[hash.delete(:name)] = hash
+    fields
   end
 
   # TODO: Remove when removed from active_record/connection_adapters/abstract/schema_statements.rb

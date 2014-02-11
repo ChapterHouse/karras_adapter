@@ -44,7 +44,6 @@ module ActiveRecord
 
       # Youa re here, moving these thinsg and just dscovered this one is potentially inside of class TableDefintions in schema_definitions
       def primary_key(table_name)
-        super
         # TODO: Change this to be a pure mongo lookup by digging into document definitions
         # TODO: Manage _id and id
         id_definition = Mongo::DocumentDefinition.fields_for(table_name).find { |_, field_definition| field_definition['primary_key'] }

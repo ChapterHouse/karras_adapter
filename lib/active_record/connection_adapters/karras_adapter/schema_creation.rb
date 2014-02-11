@@ -6,19 +6,19 @@ class ActiveRecord::ConnectionAdapters::KarrasAdapter::SchemaCreation < ActiveRe
   private
 
   def visit_AlterTable(o)
-    sqlO = "ALTER TABLE #{quote_table_name(o.name)} "
     sql = Mongo::DocumentDefinition::Update.new(o.name)
-    zzz = o.adds.map { |col| visit_AddColumn col }
-    sqlO << o.adds.map { |col| visit_AddColumn col }.join(' ')
-    raise NotImplementedError, "#{caller_locations(0).first.base_label} not implemented"
+    current_fields = Mongo::DocumentDefinition::Read.new(o.name).results.first['fields']
+    new_fields = o.adds.inject({}) { |hash, col| hash.merge(visit_AddColumn(col)) }
+    sql.document = {'fields' => current_fields.merge(new_fields) }
+    sql
   end
 
   def visit_AddColumn(o)
-    sql_type = type_to_sql(o.type.to_sym, o.limit, o.precision, o.scale)
-    sql = "ADD #{quote_column_name(o.name)} #{sql_type}"
-    zzz = add_column_options!(sql, column_options(o))
-    zzz
-    #raise NotImplementedError, "#{caller_locations(0).first.base_label} not implemented"
+    # TODO: Verify that this determination of sqltype is or is not needed
+    #sql_type = type_to_sql(o.type.to_sym, o.limit, o.precision, o.scale)
+    hash = o.to_h
+    column = { hash.delete(:name) => hash }
+    add_column_options!(column, column_options(o))
   end
 
   def visit_ColumnDefinition(o)
@@ -36,7 +36,7 @@ class ActiveRecord::ConnectionAdapters::KarrasAdapter::SchemaCreation < ActiveRe
       end
       # TODO: Figure out a way to store these as is but change them at the last moment before AR and normal Schema code see's them.
       # Ideally we would want to know something is a hash so we can automatically interpret it as a document or whatever.
-      # Any other string marshalled type would work too.
+      # Any other string marshaled type would work too.
       if column.type == :primary_key
         column.type = :integer
       elsif column.type == :hash
@@ -47,19 +47,8 @@ class ActiveRecord::ConnectionAdapters::KarrasAdapter::SchemaCreation < ActiveRe
     end
     name = o.name
 
-    # TODO: Work into crud and avoid direct collection statements
-    #db.create_collection(name)
     Mongo::DocumentDefinition::Create.new(name, fields).tap { |definer| definer.bindings = { 'name' => name, 'fields' => fields } }
 
-    #
-    #
-    #
-    #Mongo::Inserter.new('document_definitions', { 'name' => name, 'fields' => fields })
-    #
-    #-> do
-    #  document_definitions.insert({ 'name' => name, 'fields' => fields })
-    #  db.create_collection(name)
-    #end
   end
 
   def db
