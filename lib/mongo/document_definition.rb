@@ -2,6 +2,10 @@ require 'mongo/crud'
 
 class Mongo::DocumentDefinition < Delegator
 
+  def self.defined_document_names
+    Mongo::Crud::Read.new('document_definitions', {}, :fields => ['name']).map { |x| x['name'] }
+  end
+
   # TODO: Something quasi dynamic when it's not in the document definitions?
   def self.for(name)
     Mongo::DocumentDefinition::Read.new(name).results.first
@@ -42,7 +46,7 @@ class Mongo::DocumentDefinition < Delegator
   # TODO: Cahe the need for this at the class level so it is only done once.
   def initialize_document_definitions
     unless db.collection_names.include?('document_definitions')
-      # TODO: Work out a class recusive way to habdle one or both of these statements. Try and keep all of the direct collection(name) statements inside of the crud proper.
+      # TODO: Work out a class recursive way to handle one or both of these statements. Try and keep all of the direct collection(name) statements inside of the crud proper.
       collection('document_definitions').insert(
           'name' => 'document_definitions',
           'fields' => {

@@ -50,8 +50,10 @@ module ActiveRecord
         Array(id_definition).first # && id_definition.first || '_id'
       end
 
+      # TODO: Should this be just the db.collection_names, the list of defined_documents, or a combination of both?
       def tables
-        db.collection_names
+        Mongo::DocumentDefinition.defined_document_names
+        #db.collection_names
       end
 
       def supports_migrations?
@@ -87,9 +89,7 @@ $depth = 0
 
 trace = TracePoint.new(:call, :return, :raise) do |tp|
   if tp.defined_class.name.to_s.include?('Karras')
-#  if tp.defined_class == ActiveRecord::ConnectionAdapters::KarrasAdapter || tp.defined_class == Arel::Visitors::Karras
     if tp.event == :call
-
       name = tp.defined_class.name.split('::')
       name.shift until name.first.include?('Karras') || name.first.include?('Arel')
       name = (name.join('::') + ' ' * 100)[0..40]
@@ -102,6 +102,22 @@ trace = TracePoint.new(:call, :return, :raise) do |tp|
     end
   end
 end
+
+#trace = TracePoint.new(:call, :return) do |tp|
+#
+#    if tp.event == :call
+#      name = (tp.defined_class.to_s + ' ' * 100)[0..40]
+#      puts "#{name}#{'  ' * $depth}#{tp.method_id}"
+#      $depth += 1
+#    else
+#      name = (tp.defined_class.to_s + ' ' * 100)[0..40]
+#      puts "#{name}#{'  ' * $depth}#{tp.method_id}(RETURN)"
+#      $depth -= 1
+#    end
+#
+#    $depth = 0 if $depth < 0
+#end
+#
 
 trace.enable
 
