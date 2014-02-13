@@ -69,16 +69,6 @@ module ActiveRecord
         SchemaCreation.new self
       end
 
-      ## TODO: Abstract in the same way of DocumentDefinitions. Lets keep all of the direct calls to collection inside of Crud.
-      #def schema_migrations
-      #  collection('schema_migrations')
-      #end
-      #
-      ## TODO: Abstract in the same way of DocumentDefinitions. Lets keep all of the direct calls to collection inside of Crud.
-      #def system_indexes
-      #  collection('system.indexes')
-      #end
-
     end
   end
 end

@@ -8,7 +8,10 @@ module ActiveRecord::ConnectionAdapters::KarrasAdapter::SchemaStatements
   #   rename_table('octopuses', 'octopi')
   #
   def rename_table(table_name, new_name)
-    raise NotImplementedError, "rename_table is not implemented"
+    table_name = quote_table_name(table_name)
+    new_name = quote_table_name(new_name)
+    # TODO: Centralize all quote_table_name_calls
+    collection(table_name).rename(new_name)
   end
 
   # Drops a table from the database.
@@ -17,8 +20,7 @@ module ActiveRecord::ConnectionAdapters::KarrasAdapter::SchemaStatements
   # to provide these in a migration's +change+ method so it can be reverted.
   # In that case, +options+ and the block will be used by create_table.
   def drop_table(table_name, options = {})
-    #execute "DROP TABLE #{quote_table_name(table_name)}"
-    raise NotImplementedError, "#{caller_locations(0).first.base_label} not implemented"
+    collection(table_name).drop
   end
 
   # Removes the column from the table definition.
@@ -29,6 +31,7 @@ module ActiveRecord::ConnectionAdapters::KarrasAdapter::SchemaStatements
   # to provide these in a migration's +change+ method so it can be reverted.
   # In that case, +type+ and +options+ will be used by add_column.
   def remove_column(table_name, column_name, type = nil, options = {})
+    # TODO: Should this just be a document definition change or should all documents in the collection be udpated?
     #execute "ALTER TABLE #{quote_table_name(table_name)} DROP #{quote_column_name(column_name)}"
     raise NotImplementedError, "#{caller_locations(0).first.base_label} not implemented"
   end
@@ -255,7 +258,7 @@ module ActiveRecord::ConnectionAdapters::KarrasAdapter::SchemaStatements
 
   def remove_index!(table_name, index_name) #:nodoc:
     #execute "DROP INDEX #{quote_column_name(index_name)} ON #{quote_table_name(table_name)}"
-    raise NotImplementedError, "#{caller_locations(0).first.base_label} not implemented"
+    collection(table_name).drop_index(column_name)
   end
 
   def dump_schema_information #:nodoc:
